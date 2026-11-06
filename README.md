@@ -2,7 +2,7 @@
 
 **Beyond ordinary hardware.** Premium technology catalog and interactive PC configuration experience built with ASP.NET Core MVC and Razor. Interface language: Kazakh. Currency: KZT.
 
-**Автор:** Nurlybek Sarsenbekuly · **GitHub:** [Nurlybek2006](https://github.com/Nurlybek2006)
+**Автор:** Nurlybek Sarsenbekuly · ИСК-242 · **GitHub:** [Nurlybek2006](https://github.com/Nurlybek2006)
 
 ## Жоба туралы
 
