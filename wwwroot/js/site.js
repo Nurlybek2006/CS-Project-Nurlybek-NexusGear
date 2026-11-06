@@ -1,34 +1,320 @@
 (() => {
-  const keys={favorites:'nexus-gear:favorites:v1',compare:'nexus-gear:compare:v1',builder:'nexus-gear:pc-builder:v1',theme:'nexus-gear:theme:v1'};
-  const read=k=>{try{return JSON.parse(localStorage.getItem(k)||'[]')}catch{return []}}, save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
-  const toast=(message)=>{const host=document.querySelector('#toast-region');if(!host)return;const el=document.createElement('div');el.className='toast-note';el.textContent=message;host.append(el);setTimeout(()=>el.remove(),2700)};
-  function update(){for(const kind of ['favorites','compare']){const ids=read(keys[kind]);document.querySelectorAll(`[data-counter="${kind}"]`).forEach(e=>e.textContent=ids.length);document.querySelectorAll(`[data-${kind==='favorites'?'favorite':'compare'}]`).forEach(b=>{const id=Number(b.dataset[kind==='favorites'?'favorite':'compare']);const active=ids.includes(id);b.classList.toggle('is-active',active);if(kind==='favorites')b.textContent=active?'♥':'♡'});const path=kind==='favorites'?'/Favorites':'/Compare';document.querySelectorAll(`[data-list-link="${kind}"]`).forEach(a=>a.href=`${path}?ids=${ids.join('&ids=')}`)}}
-  document.addEventListener('click',async e=>{
-    const fav=e.target.closest('[data-favorite]');if(fav){const id=Number(fav.dataset.favorite),a=read(keys.favorites),i=a.indexOf(id);i>=0?a.splice(i,1):a.push(id);save(keys.favorites,a);update();toast(i>=0?'Таңдаулылардан алынды':'Таңдаулыларға қосылды');return}
-    const cmp=e.target.closest('[data-compare]');if(cmp){const id=Number(cmp.dataset.compare),a=read(keys.compare);if(a.includes(id)){save(keys.compare,a.filter(x=>x!==id));toast('Салыстырудан алынды')}else if(a.length>=3){toast('Үш өнімге дейін таңдауға болады')}else{a.push(id);save(keys.compare,a);toast('Салыстыруға қосылды')}update();return}
-    const rm=e.target.closest('[data-remove-compare]');if(rm){save(keys.compare,read(keys.compare).filter(x=>x!==Number(rm.dataset.removeCompare)));location.href='/Compare?ids='+read(keys.compare).join('&ids=');return}
-    const clr=e.target.closest('[data-clear]');if(clr){save(keys[clr.dataset.clear],[]);location.href=clr.dataset.clear==='compare'?'/Compare':'/Favorites';return}
-    const quick=e.target.closest('[data-quick]');if(quick){const modal=document.querySelector('#quickViewModal'),content=document.querySelector('#quickViewContent');content.innerHTML='<div class="p-5">Жүктелуде…</div>';bootstrap.Modal.getOrCreateInstance(modal).show();const response=await fetch(`/Product/QuickView?id=${quick.dataset.quick}`);content.innerHTML=response.ok?await response.text():'<div class="p-5">Өнімді жүктеу мүмкін болмады.</div>';return}
-    if(e.target.closest('.theme-toggle')){const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem(keys.theme,next)}
-    if(e.target.closest('.menu-toggle'))document.querySelector('.main-nav')?.classList.toggle('nav-open');
-  });
-  update();fetch('/api/products').then(r=>r.json()).then(products=>{const valid=new Set(products.map(p=>p.id));for(const kind of ['favorites','compare']){const kept=read(keys[kind]).map(Number).filter((id,i,a)=>valid.has(id)&&a.indexOf(id)===i).slice(0,kind==='compare'?3:undefined);save(keys[kind],kept)}update()}).catch(()=>{});
-
-  const root=document.querySelector('[data-builder]');if(root){const selects=[...root.querySelectorAll('[data-component-select]')],selected=read(keys.builder),lookup=new Map();let all=[];
-    fetch('/api/products').then(r=>r.json()).then(data=>{all=data;for(const s of selects){const match=selected.find(x=>x.type===s.dataset.componentSelect);if(match&&data.some(p=>p.id===match.id))s.value=String(match.id)}render()});
-    selects.forEach(s=>s.addEventListener('change',render));root.addEventListener('click',e=>{const remove=e.target.closest('[data-remove-component]');if(remove){const s=root.querySelector(`[data-component-select="${remove.dataset.removeComponent}"]`);s.value='';render()}});
-    function render(){const parts=selects.map(s=>all.find(p=>p.id===Number(s.value))).filter(Boolean);save(keys.builder,parts.map(p=>({type:p.componentType,id:p.id})));root.querySelectorAll('[data-component-row]').forEach(row=>{const p=parts.find(x=>x.componentType===row.dataset.componentRow);row.querySelector('.selected-name').textContent=p?p.name:'Бөлшек таңдалмаған';row.querySelector('.selected-price').textContent=p?`${p.price.toLocaleString('ru-RU')} ₸`: '—'});document.querySelector('#build-list').innerHTML=parts.length?parts.map(p=>`<div><span>${escapeHtml(p.componentType)}</span><b>${escapeHtml(p.name)}</b></div>`).join(''):'<p>Бөлшек таңдалған сайын конфигурация осында көрінеді.</p>';document.querySelector('#build-total').textContent=parts.reduce((n,p)=>n+p.price,0).toLocaleString('ru-RU')+' ₸';compat(parts);}
-    function compatibility(parts){const problems=[],unknown=[];const get=t=>parts.find(p=>p.componentType===t),cpu=get('CPU'),board=get('Motherboard'),ram=get('RAM'),box=get('Case'),gpu=get('GPU'),cooler=get('Cooler');
-      if(cpu&&board){if(!cpu.specs.socket||!board.specs.socket)unknown.push('CPU немесе плата сокеті көрсетілмеген');else if(cpu.specs.socket!==board.specs.socket)problems.push('CPU сокеті аналық платаға сәйкес емес')}
-      if(ram&&board){if(!ram.specs.memory||!board.specs.memory)unknown.push('Жад түрі көрсетілмеген');else if(ram.specs.memory!==board.specs.memory)problems.push('RAM түрі платаға сәйкес емес')}
-      if(board&&box){if(!board.specs.formFactor||!box.specs.formFactor)unknown.push('Форм-фактор дерегі жоқ');else if(board.specs.formFactor==='ATX'&&box.specs.formFactor!=='ATX')problems.push('ATX плата корпусқа сыймайды')}
-      if(gpu&&box){const len=Number(gpu.specs.length),limit=Number(box.specs.gpuLength);if(!len||!limit)unknown.push('GPU ұзындығы немесе корпус шегі жоқ');else if(len>limit)problems.push('GPU корпустың ұзындық шегінен асады')}
-      if(cpu&&cooler){if(!cpu.specs.socket||!cooler.specs.socketSupport)unknown.push('Салқындатқыш сокет қолдауы белгісіз');else if(!cooler.specs.socketSupport.includes(cpu.specs.socket))problems.push('Салқындатқыш CPU сокетін қолдамайды')}
-      if(cooler&&box){const h=Number(cooler.specs.height),limit=Number(box.specs.coolerHeight);if(!h||!limit)unknown.push('Салқындатқыш биіктігі не корпус шегі жоқ');else if(h>limit)problems.push('Салқындатқыш корпус биіктігінен асады')}
-      return {problems,unknown};}
-    function compat(parts){const {problems,unknown}=compatibility(parts),box=document.querySelector('#compatibility'),msg=problems.length?problems.join(' · '):unknown.length?'Үйлесімділікті толық тексеру үшін дерек жеткіліксіз.':'Тексерілетін сәйкестіктер расталды.';box.classList.toggle('compat-bad',problems.length>0);box.classList.toggle('compat-unknown',!problems.length&&unknown.length>0);box.querySelector('p').textContent=msg;
-      const cpu=parts.find(p=>p.componentType==='CPU'),gpu=parts.find(p=>p.componentType==='GPU'),psu=parts.find(p=>p.componentType==='PSU');if(cpu?.wattage&&gpu?.wattage){const estimate=Math.ceil((cpu.wattage+gpu.wattage+150)*1.3);document.querySelector('#power-estimate').textContent=`Ұсынылатын қуат: кемінде ${estimate} W (30% қорымен)`;document.querySelector('#power-estimate').classList.toggle('power-warning',!!psu&&psu.wattage<estimate)}else document.querySelector('#power-estimate').textContent='Қуат бағасы: CPU/GPU деректері жеткіліксіз';}
-    document.querySelector('#clear-build').addEventListener('click',()=>{selects.forEach(s=>s.value='');render()});document.querySelector('#export-build').addEventListener('click',()=>{const config={createdAt:new Date().toISOString(),components:selects.map(s=>all.find(p=>p.id===Number(s.value))).filter(Boolean),total:selects.map(s=>all.find(p=>p.id===Number(s.value))).filter(Boolean).reduce((n,p)=>n+p.price,0)};const blob=new Blob([JSON.stringify(config,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='nexus-gear-build.json';a.click();URL.revokeObjectURL(url)});
+  const keys = {
+    favorites: "nexus-gear:favorites:v1",
+    compare: "nexus-gear:compare:v1",
+    builder: "nexus-gear:pc-builder:v1",
+    theme: "nexus-gear:theme:v1",
+  };
+  const read = (k) => {
+      try {
+        return JSON.parse(localStorage.getItem(k) || "[]");
+      } catch {
+        return [];
+      }
+    },
+    save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+  const toast = (message) => {
+    const host = document.querySelector("#toast-region");
+    if (!host) return;
+    const el = document.createElement("div");
+    el.className = "toast-note";
+    el.textContent = message;
+    host.append(el);
+    setTimeout(() => el.remove(), 2700);
+  };
+  function update() {
+    for (const kind of ["favorites", "compare"]) {
+      const ids = read(keys[kind]);
+      document
+        .querySelectorAll(`[data-counter="${kind}"]`)
+        .forEach((e) => (e.textContent = ids.length));
+      document
+        .querySelectorAll(
+          `[data-${kind === "favorites" ? "favorite" : "compare"}]`,
+        )
+        .forEach((b) => {
+          const id = Number(
+            b.dataset[kind === "favorites" ? "favorite" : "compare"],
+          );
+          const active = ids.includes(id);
+          b.classList.toggle("is-active", active);
+          if (kind === "favorites") b.textContent = active ? "♥" : "♡";
+        });
+      const path = kind === "favorites" ? "/Favorites" : "/Compare";
+      document
+        .querySelectorAll(`[data-list-link="${kind}"]`)
+        .forEach((a) => (a.href = `${path}?ids=${ids.join("&ids=")}`));
+    }
   }
-  function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+  document.addEventListener("click", async (e) => {
+    const fav = e.target.closest("[data-favorite]");
+    if (fav) {
+      const id = Number(fav.dataset.favorite),
+        a = read(keys.favorites),
+        i = a.indexOf(id);
+      i >= 0 ? a.splice(i, 1) : a.push(id);
+      save(keys.favorites, a);
+      update();
+      toast(i >= 0 ? "Таңдаулылардан алынды" : "Таңдаулыларға қосылды");
+      return;
+    }
+    const cmp = e.target.closest("[data-compare]");
+    if (cmp) {
+      const id = Number(cmp.dataset.compare),
+        a = read(keys.compare);
+      if (a.includes(id)) {
+        save(
+          keys.compare,
+          a.filter((x) => x !== id),
+        );
+        toast("Салыстырудан алынды");
+      } else if (a.length >= 3) {
+        toast("Үш өнімге дейін таңдауға болады");
+      } else {
+        a.push(id);
+        save(keys.compare, a);
+        toast("Салыстыруға қосылды");
+      }
+      update();
+      return;
+    }
+    const rm = e.target.closest("[data-remove-compare]");
+    if (rm) {
+      save(
+        keys.compare,
+        read(keys.compare).filter(
+          (x) => x !== Number(rm.dataset.removeCompare),
+        ),
+      );
+      location.href = "/Compare?ids=" + read(keys.compare).join("&ids=");
+      return;
+    }
+    const clr = e.target.closest("[data-clear]");
+    if (clr) {
+      save(keys[clr.dataset.clear], []);
+      location.href =
+        clr.dataset.clear === "compare" ? "/Compare" : "/Favorites";
+      return;
+    }
+    const quick = e.target.closest("[data-quick]");
+    if (quick) {
+      const modal = document.querySelector("#quickViewModal"),
+        content = document.querySelector("#quickViewContent");
+      content.innerHTML = '<div class="p-5">Жүктелуде…</div>';
+      bootstrap.Modal.getOrCreateInstance(modal).show();
+      const response = await fetch(
+        `/Product/QuickView?id=${quick.dataset.quick}`,
+      );
+      content.innerHTML = response.ok
+        ? await response.text()
+        : '<div class="p-5">Өнімді жүктеу мүмкін болмады.</div>';
+      return;
+    }
+    if (e.target.closest(".theme-toggle")) {
+      const next =
+        document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem(keys.theme, next);
+    }
+    if (e.target.closest(".menu-toggle"))
+      document.querySelector(".main-nav")?.classList.toggle("nav-open");
+  });
+  update();
+  fetch("/api/products")
+    .then((r) => r.json())
+    .then((products) => {
+      const valid = new Set(products.map((p) => p.id));
+      for (const kind of ["favorites", "compare"]) {
+        const kept = read(keys[kind])
+          .map(Number)
+          .filter((id, i, a) => valid.has(id) && a.indexOf(id) === i)
+          .slice(0, kind === "compare" ? 3 : undefined);
+        save(keys[kind], kept);
+      }
+      update();
+    })
+    .catch(() => {});
+
+  const root = document.querySelector("[data-builder]");
+  if (root) {
+    const selects = [...root.querySelectorAll("[data-component-select]")],
+      selected = read(keys.builder),
+      lookup = new Map();
+    let all = [];
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((data) => {
+        all = data;
+        for (const s of selects) {
+          const match = selected.find(
+            (x) => x.type === s.dataset.componentSelect,
+          );
+          if (match && data.some((p) => p.id === match.id))
+            s.value = String(match.id);
+        }
+        render();
+      });
+    selects.forEach((s) => s.addEventListener("change", render));
+    root.addEventListener("click", (e) => {
+      const remove = e.target.closest("[data-remove-component]");
+      if (remove) {
+        const s = root.querySelector(
+          `[data-component-select="${remove.dataset.removeComponent}"]`,
+        );
+        s.value = "";
+        render();
+      }
+    });
+    function render() {
+      const parts = selects
+        .map((s) => all.find((p) => p.id === Number(s.value)))
+        .filter(Boolean);
+      save(
+        keys.builder,
+        parts.map((p) => ({ type: p.componentType, id: p.id })),
+      );
+      root.querySelectorAll("[data-component-row]").forEach((row) => {
+        const p = parts.find(
+          (x) => x.componentType === row.dataset.componentRow,
+        );
+        row.querySelector(".selected-name").textContent = p
+          ? p.name
+          : "Бөлшек таңдалмаған";
+        row.querySelector(".selected-price").textContent = p
+          ? `${p.price.toLocaleString("ru-RU")} ₸`
+          : "—";
+      });
+      document.querySelector("#build-list").innerHTML = parts.length
+        ? parts
+            .map(
+              (p) =>
+                `<div><span>${escapeHtml(p.componentType)}</span><b>${escapeHtml(p.name)}</b></div>`,
+            )
+            .join("")
+        : "<p>Бөлшек таңдалған сайын конфигурация осында көрінеді.</p>";
+      document.querySelector("#build-total").textContent =
+        parts.reduce((n, p) => n + p.price, 0).toLocaleString("ru-RU") + " ₸";
+      compat(parts);
+    }
+    function compatibility(parts) {
+      const problems = [],
+        unknown = [];
+      const get = (t) => parts.find((p) => p.componentType === t),
+        cpu = get("CPU"),
+        board = get("Motherboard"),
+        ram = get("RAM"),
+        box = get("Case"),
+        gpu = get("GPU"),
+        cooler = get("Cooler");
+      if (cpu && board) {
+        if (!cpu.specs.socket || !board.specs.socket)
+          unknown.push("CPU немесе плата сокеті көрсетілмеген");
+        else if (cpu.specs.socket !== board.specs.socket)
+          problems.push("CPU сокеті аналық платаға сәйкес емес");
+      }
+      if (ram && board) {
+        if (!ram.specs.memory || !board.specs.memory)
+          unknown.push("Жад түрі көрсетілмеген");
+        else if (ram.specs.memory !== board.specs.memory)
+          problems.push("RAM түрі платаға сәйкес емес");
+      }
+      if (board && box) {
+        if (!board.specs.formFactor || !box.specs.formFactor)
+          unknown.push("Форм-фактор дерегі жоқ");
+        else if (
+          board.specs.formFactor === "ATX" &&
+          box.specs.formFactor !== "ATX"
+        )
+          problems.push("ATX плата корпусқа сыймайды");
+      }
+      if (gpu && box) {
+        const len = Number(gpu.specs.length),
+          limit = Number(box.specs.gpuLength);
+        if (!len || !limit) unknown.push("GPU ұзындығы немесе корпус шегі жоқ");
+        else if (len > limit)
+          problems.push("GPU корпустың ұзындық шегінен асады");
+      }
+      if (cpu && cooler) {
+        if (!cpu.specs.socket || !cooler.specs.socketSupport)
+          unknown.push("Салқындатқыш сокет қолдауы белгісіз");
+        else if (!cooler.specs.socketSupport.includes(cpu.specs.socket))
+          problems.push("Салқындатқыш CPU сокетін қолдамайды");
+      }
+      if (cooler && box) {
+        const h = Number(cooler.specs.height),
+          limit = Number(box.specs.coolerHeight);
+        if (!h || !limit)
+          unknown.push("Салқындатқыш биіктігі не корпус шегі жоқ");
+        else if (h > limit)
+          problems.push("Салқындатқыш корпус биіктігінен асады");
+      }
+      return { problems, unknown };
+    }
+    function compat(parts) {
+      const { problems, unknown } = compatibility(parts),
+        box = document.querySelector("#compatibility"),
+        msg = problems.length
+          ? problems.join(" · ")
+          : unknown.length
+            ? "Үйлесімділікті толық тексеру үшін дерек жеткіліксіз."
+            : "Тексерілетін сәйкестіктер расталды.";
+      box.classList.toggle("compat-bad", problems.length > 0);
+      box.classList.toggle(
+        "compat-unknown",
+        !problems.length && unknown.length > 0,
+      );
+      box.querySelector("p").textContent = msg;
+      const cpu = parts.find((p) => p.componentType === "CPU"),
+        gpu = parts.find((p) => p.componentType === "GPU"),
+        psu = parts.find((p) => p.componentType === "PSU");
+      if (cpu?.wattage && gpu?.wattage) {
+        const estimate = Math.ceil((cpu.wattage + gpu.wattage + 150) * 1.3);
+        document.querySelector("#power-estimate").textContent =
+          `Ұсынылатын қуат: кемінде ${estimate} W (30% қорымен)`;
+        document
+          .querySelector("#power-estimate")
+          .classList.toggle("power-warning", !!psu && psu.wattage < estimate);
+      } else
+        document.querySelector("#power-estimate").textContent =
+          "Қуат бағасы: CPU/GPU деректері жеткіліксіз";
+    }
+    document.querySelector("#clear-build").addEventListener("click", () => {
+      selects.forEach((s) => (s.value = ""));
+      render();
+    });
+    document.querySelector("#export-build").addEventListener("click", () => {
+      const config = {
+        createdAt: new Date().toISOString(),
+        components: selects
+          .map((s) => all.find((p) => p.id === Number(s.value)))
+          .filter(Boolean),
+        total: selects
+          .map((s) => all.find((p) => p.id === Number(s.value)))
+          .filter(Boolean)
+          .reduce((n, p) => n + p.price, 0),
+      };
+      const blob = new Blob([JSON.stringify(config, null, 2)], {
+          type: "application/json",
+        }),
+        url = URL.createObjectURL(blob),
+        a = document.createElement("a");
+      a.href = url;
+      a.download = "nexus-gear-build.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+  function escapeHtml(s) {
+    return String(s).replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[c],
+    );
+  }
 })();

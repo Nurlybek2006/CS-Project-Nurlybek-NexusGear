@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NexusGear")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+01a0c066e7b1d4b7e5d6a2ccda562764cdea46ce")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fd70e997ae375c853c49f7b45c9399184223c3bb")]
 [assembly: System.Reflection.AssemblyProductAttribute("NexusGear")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NexusGear")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
